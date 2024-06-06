@@ -1,0 +1,41 @@
+# standard gitignore
+library/
+local/
+cellar/
+lock/
+python/
+sandbox/
+staging/
+
+# ignore R Markdown cache
+# *.Rmd
+*_cache/
+*_files/
+
+# ignore MS office and html files
+*.xlsx
+*.pptx
+*.html
+
+# ignore all data folders + files
+data/
+*.csv
+*.RData
+*.sas7bdat
+*.zip
+*.7z
+*.txt
+*.rda
+
+# ignore image folders
+images/
+
+# ignore output pdfs and images
+*.png
+*.jpg
+*.tiff
+*.tif
+*.pdf
+
+# other ignore
+.Rhistory
