@@ -107,4 +107,7 @@ voc_season_dunn = voc_season_dunn %>%
                 group2 = 'winter')
 
 # we will only look at BTEX species where concentrations were above detection limit (list from voc_season_dunn)
-seasonal_comparison_plot(data = voc_long, stat_res = voc_season_dunn)
+seasonal_comparison_boxplot = seasonal_comparison_plot(data = voc_long, stat_res = voc_season_dunn)
+png(filename = 'figures/seasonal_comparison_dunn.png', width = 8, height = 6, units = 'in', res = 600)
+seasonal_comparison_boxplot
+dev.off()
