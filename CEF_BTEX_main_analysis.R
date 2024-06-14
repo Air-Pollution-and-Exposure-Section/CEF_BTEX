@@ -29,6 +29,12 @@ voc_species = c('Dichloromethane', 'Hexane', 'Chloroform', '__2_Dichloroethane',
                 'Pentachloroethane', 'd_Limonene', 'p_Cymene', '__3_Dichlorobenzene', '__4_Dichlorobenzene', 'Hexachloroethane',
                 '__2_4_Trichlorobenzene', 'Naphthalene')
 
+# name transform + apply to columns in dataset
+names(voc_species) = name_transform(voc_species)
+voc = voc %>% dplyr::rename(names(voc_species) <- voc_species)
+
+# from here on use the converted voc species
+voc_species = name_transform(voc_species)
 
 # convert data to long format - for calculations and plotting later
 voc_long = voc %>%
@@ -72,7 +78,8 @@ voc_summary_stats = voc_long %>%
                    max = max(conc)) %>%
   dplyr::left_join(., voc_BDL, by = c('species', 'season')) %>%
   dplyr::arrange(species, season) %>%
-  dplyr::select(species, season, N, n_BDL, `%_BDL`, min, max, mean, sd, p25, p50, p75)
+  dplyr::select(species, season, N, n_BDL, `%_BDL`, min, max, mean, sd, p25, p50, p75) %>%
+  dplyr::ungroup()
 
 # generate and modify table
 summary_stats_flextable = generate_summary_statistics(voc_summary_stats, voc_species)
@@ -111,3 +118,115 @@ seasonal_comparison_boxplot = seasonal_comparison_plot(data = voc_long, stat_res
 png(filename = 'figures/seasonal_comparison_dunn.png', width = 8, height = 6, units = 'in', res = 600)
 seasonal_comparison_boxplot
 dev.off()
+
+
+
+# Effect of distance to gas station ---------------------------------------
+
+# select only compounds where % BDL is not 100%
+voc_detectable = voc_summary_stats %>%
+  dplyr::filter(`%_BDL` < 100) %>%
+  dplyr::select(species) %>%
+  unique() %>%
+  unlist(use.names = FALSE)
+  
+
+# examine the effect of gas stations on BTEX species concentrations
+# concentration ~ dist_to_closest_gas_m
+
+seasons = c('fall', 'winter')
+voc_seasons = expand.grid(voc_detectable, seasons)
+voc_seasons = paste(voc_seasons$Var1, voc_seasons$Var2, sep = '_')
+
+lm_results = vector(mode = 'list', length = (length(voc_detectable) * length(seasons)))
+lm_plots = vector(mode = 'list', length = (length(voc_detectable) * length(seasons)))
+
+for(i in 1:length(voc_detectable)){
+  for(j in 1:length(seasons)){
+    
+    index = (i-1)*length(seasons) + j
+    names(lm_results)[index] = paste(voc_detectable[i], seasons[j], sep = '_')
+    data_subset = voc %>% dplyr::filter(season == seasons[j])
+    form = as.formula(paste(paste0('`', voc_detectable[i], '`'), '~ dist_to_closest_gas_m'))
+    
+    # run lm and save results to list
+    lm_results[[index]]$season = seasons[j]
+    lm_results[[index]]$voc = voc_detectable[i]
+    lm_results[[index]]$lm_result = stats::lm(formula = form, data = data_subset)
+    lm_results[[index]]$lm_summary = summary(lm_results[[index]]$lm_result)
+    lm_results[[index]]$slope = lm_results[[index]]$lm_summary$coefficients[2,1]
+    lm_results[[index]]$slope_signif = lm_results[[index]]$lm_summary$coefficients[2,4]
+    
+    ## Graphical Representation of Linear Regression
+    
+    # plot vars
+    y_pos = max(data_subset[,voc_detectable[i]]) * 1.05
+    y_name = bquote(paste("Concentration", " (", mu * g, "/", m ^ 3, ")"))
+    plot_title = paste(stringr::str_to_sentence(seasons[j]), voc_detectable[i])
+    
+    eqn = lm_equation(lm_results[[index]]$lm_result)
+    lm_plots[[index]] = ggpubr::ggscatter(data = data_subset,
+                                          x = 'dist_to_closest_gas_m',
+                                          y = voc_detectable[i]) +
+      ggplot2::stat_smooth(method = 'lm',
+                           colour = 'black', alpha = 0.2) +
+      # add linear regression results, P value is P value of slope, H0 is slope = 0, R^2 of regression is given
+      ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
+      ggplot2::scale_y_continuous(name = y_name) +
+      ggplot2::annotate(geom = 'text', x = 0, y = y_pos, label = eqn, parse = TRUE, hjust = 0) +
+      ggplot2::ggtitle(label = plot_title)
+    lm_plots[[index]]
+  }
+}
+
+lm_plots_combined = vector(mode = 'list', length = length(voc_detectable))
+for(i in 1:length(voc_detectable)){
+  y_pos_fall = max(voc[,voc_detectable[i]]) * 1.1
+  y_pos_winter = max(voc[,voc_detectable[i]]) * 1.05
+  y_name = bquote(paste("Concentration", " (", mu * g, "/", m ^ 3, ")"))
+  plot_title = voc_detectable[i]
+  
+  form = as.formula(paste(paste0('`', voc_detectable[i], '`'), '~ dist_to_closest_gas_m'))
+  fall_regression = lm(formula = form, data = voc, subset = season == 'fall')
+  winter_regression = lm(formula = form, data = voc, subset = season == 'winter')
+  eqn_fall = lm_equation(fall_regression)
+  eqn_winter = lm_equation(winter_regression)
+  
+  lm_plots_combined[[i]] = ggpubr::ggscatter(data = voc,
+                                             x = 'dist_to_closest_gas_m',
+                                             y = voc_detectable[i],
+                                             color = 'season') +
+    # add regression lines
+    ggplot2::stat_smooth(aes(color = season, fill = season),
+                         method = 'lm', 
+                         alpha = 0.1,
+                         inherit.aes = TRUE, linewidth = 1) +
+    # adjust colour/fill scales
+    ggplot2::scale_fill_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
+    ggplot2::scale_color_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
+    ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
+    ggplot2::scale_y_continuous(name = y_name) +
+    ggplot2::annotate(geom = 'text', x = 0, y = y_pos_fall, label = eqn_fall, parse = TRUE, hjust = 0, color = 'tomato4') +
+    ggplot2::annotate(geom = 'text', x = 0, y = y_pos_winter, label = eqn_winter, parse = TRUE, hjust = 0, color = 'skyblue4') +
+    ggplot2::ggtitle(label = plot_title)
+  lm_plots_combined[[i]] 
+}
+
+
+# temp_data = voc %>%
+#   dplyr::select(tidyselect::all_of(voc_detectable),
+#                 season,
+#                 dist_to_closest_gas_m) %>%
+#   dplyr::filter(season == 'winter')
+# 
+# lm_res = stats::lm(formula = Toluene ~ dist_to_closest_gas_m, data = temp_data)
+# summary(lm_res)
+# 
+# ggplot2::ggplot(data = temp_data, mapping = aes(x = dist_to_closest_gas_m, y = Toluene)) +
+#   geom_point() +
+#   geom_smooth(method = 'loess') +
+#   theme_minimal()
+
+
+
+

@@ -4,6 +4,22 @@ hello_world = function(){
   print('Hello_world!')
 }
 
+# fixing names in dataset using regex
+name_transform = function(x){
+  require(stringr)
+  
+  out = stringr::str_replace_all(x, '^__|^_',  '(')
+  
+  pattern = '([a-z0-9])_([a-z0-9])'
+  while (any(stringr::str_detect(out, pattern))) {
+    out = stringr::str_replace_all(out, pattern , '\\1,\\2')
+  }
+  
+  out = stringr::str_replace_all(out, '(?<!^)([a-z0-9])_*([A-Z])', '\\1)_\\2')
+  
+  return(out)
+}
+
 
 #' Generate Summary Statistics
 #'
@@ -84,4 +100,14 @@ seasonal_comparison_plot = function(data, stat_res, sigma = 0.01, logbase = 10) 
                    text = element_text(size = 8))
   
   return(plot)
+}
+
+# return equation of linear regression from lm() output
+lm_equation = function(lm_result){
+  eq = substitute(italic(y) == a + b * italic(x)*","~~italic(R)^2~"="~r2*","~~italic(P)~"="~pval, 
+                   list(a = format(unname(coef(lm_result)[1]), digits = 2),
+                        b = format(unname(coef(lm_result)[2]), digits = 2),
+                        r2 = format(summary(lm_result)$r.squared, digits = 4),
+                        pval = format(summary(lm_result)$coefficients[2,4], digits = 4)))
+  return(as.character(as.expression(eq)))
 }
