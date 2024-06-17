@@ -35,6 +35,15 @@ We are interested in: BTEX VOC concentrations differences between Fall and Winte
 
 All VOCs and relevant summary statistics are shown in the following table. Note that many species were not detected (100% of samples below detection limit). For subsequent analyses, only VOC species that were detected at least once (\< 100% BDL) were retained.
 
+Keith Notes:
+- drop n_BDL
+- Drop Q1 and Q3
+- drop median
+- Fall and Winter Statstics next to eachother (wider format)
+- Drop Statistic as a header
+- Add some subtle asterisk or P value to show significant different between seasons (Fall-Winter)
+- Call this table 1
+
 ```{r Summary Table}
 #| warning = FALSE,
 #| message = FALSE,
@@ -51,6 +60,10 @@ ft
 ## Visualizing Fall - Winter Differences in VOC Concentration
 
 Data are visualised on a pseudo-log transformed scale. Dunn test (non parametric) was used to compared the differences in mean concentration between fall and winter seasons for selected BTEX VOC compounds (species with \< 100% BDL). Statistical significance between seasons is denoted as follows - * : P <= 0.05; ** P <= 0.01; *** P <= 0.001; **** P <= 0.0001
+
+Keith Notes:
+- Change detection threshold to <80% instead of <100%
+- drop chloroform trichloroethylene alpha pinene,
 
 ```{r Fall-Winter Differences}
 #| fig.height = 6,
@@ -79,6 +92,15 @@ for(i in 1:length(lm_results)){
 ```
 
 Next we examine the effect of gas station by simple linear regression. Each BTEX VOC compound with detectable values (\< 100% BDL) were analysed using the lm() method, stratified by season. In general, for detected BTEX VOC species, there is a negative effect with distance to gas station (concentration decreases with increasing distance to gas station). For some species such as Benzene, Ethylbenzene,and o-Xylene, the slope is steeper in the winter compared to the fall. Due to the large variance in data (especially due to many data points \< BDL) there are few statistically significant regressions. The slope for the following BTEX species (stratified by season) are statistically significant (P \< 0.05): `r paste(btex_significant_slopes, sep = ', ')`.
+
+Keith Notes:
+- 100% below detection in a season should not be represented on a figure, apply 80% cutoff
+- Could add a table to tabulate the VOC-season slope and P values to present
+- Hexane shows similar relationship between fall and winter, just different baseline level by season
+
+Every season-voc regression that are significant should be tabulated. We can explore other covariates after
+
+Aim to make this paper short in general - explore a simple relationship/effect
 
 ```{r Distance to Gas Station Regression}
 #| fig.height = 6.5,

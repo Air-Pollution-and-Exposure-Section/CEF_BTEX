@@ -8,3 +8,7 @@
 
 # ignore renv directory; build new renv using the lockfile provided
 /renv
+
+# ignore caches
+/CEF_BTEX_Results_cache
+/CEF_BTEX_Results_files
