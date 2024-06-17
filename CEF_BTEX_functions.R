@@ -65,7 +65,7 @@ seasonal_comparison_plot = function(data, stat_res, sigma = 0.01, logbase = 10) 
   require(ggplot2)
   require(rstatix)
   
-  y_name = bquote(paste("Concentration", " (", n * g, "/", m ^ 3, ")"))
+  y_name = bquote(paste("Concentration", " (", mu * g, "/", m ^ 3, ")"))
   y_range = c(0,3)
   y_breaks = c(0.1, 0.5, 1, 2, 3)
   y_breaks_minor = c(seq(0.1, 5, 0.1))

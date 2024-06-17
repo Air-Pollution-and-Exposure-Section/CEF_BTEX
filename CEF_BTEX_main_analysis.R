@@ -22,19 +22,37 @@ source('CEF_BTEX_functions.R')
 voc = readxl::read_xlsx(path = 'data/EGROW_passive_for_analysis.xlsx', sheet = 2, col_names = T) %>%
   dplyr::filter(!is.na(Dichloromethane))
 
-# list of btex species
-voc_species = c('Dichloromethane', 'Hexane', 'Chloroform', '__2_Dichloroethane', 'Benzene', 'Trichloroethylene',
+# list of btex species - apply name transformations
+voc_species = name_transform(c('Dichloromethane', 'Hexane', 'Chloroform', '__2_Dichloroethane', 'Benzene', 'Trichloroethylene',
                 'Toluene', 'Tetrachloroethylene', 'Ethylbenzene', '_m_p__Xylene', 'o_Xylene', 'Styrene', 'Cumene', 
                 'a_Pinene', '__1_2_2_Tetrchloroethane', 'n_Decane', '__3_5_Trimethylbenzene', '__2_4_Trimethylbenzene', 
                 'Pentachloroethane', 'd_Limonene', 'p_Cymene', '__3_Dichlorobenzene', '__4_Dichlorobenzene', 'Hexachloroethane',
-                '__2_4_Trichlorobenzene', 'Naphthalene')
+                '__2_4_Trichlorobenzene', 'Naphthalene'))
 
-# name transform + apply to columns in dataset
-names(voc_species) = name_transform(voc_species)
-voc = voc %>% dplyr::rename(names(voc_species) <- voc_species)
+names(voc_species) = c('Dichloromethane', 'Hexane', 'Chloroform', '__2_Dichloroethane', 'Benzene', 'Trichloroethylene',
+                       'Toluene', 'Tetrachloroethylene', 'Ethylbenzene', '_m_p__Xylene', 'o_Xylene', 'Styrene', 'Cumene', 
+                       'a_Pinene', '__1_2_2_Tetrchloroethane', 'n_Decane', '__3_5_Trimethylbenzene', '__2_4_Trimethylbenzene', 
+                       'Pentachloroethane', 'd_Limonene', 'p_Cymene', '__3_Dichlorobenzene', '__4_Dichlorobenzene', 'Hexachloroethane',
+                       '__2_4_Trichlorobenzene', 'Naphthalene')
 
-# from here on use the converted voc species
-voc_species = name_transform(voc_species)
+
+# generate list of variables (VOCs) to be renamed
+rename_dict = c(voc_species, paste0(voc_species,'_BDL'))
+names(rename_dict) = c(names(voc_species), paste0(names(voc_species), '_BDL'))
+
+# identify which names to replace
+voc_names_to_replace = names(voc) %in% names(rename_dict)
+
+# replace names by matching key-value pairs (name : value)
+names(voc)[voc_names_to_replace] = rename_dict[names(voc)[voc_names_to_replace]]
+
+
+# simplify voc_species since dictionary matching no longer needed
+voc_species = name_transform(c('Dichloromethane', 'Hexane', 'Chloroform', '__2_Dichloroethane', 'Benzene', 'Trichloroethylene',
+                               'Toluene', 'Tetrachloroethylene', 'Ethylbenzene', '_m_p__Xylene', 'o_Xylene', 'Styrene', 'Cumene', 
+                               'a_Pinene', '__1_2_2_Tetrchloroethane', 'n_Decane', '__3_5_Trimethylbenzene', '__2_4_Trimethylbenzene', 
+                               'Pentachloroethane', 'd_Limonene', 'p_Cymene', '__3_Dichlorobenzene', '__4_Dichlorobenzene', 'Hexachloroethane',
+                               '__2_4_Trichlorobenzene', 'Naphthalene'))
 
 # convert data to long format - for calculations and plotting later
 voc_long = voc %>%
@@ -85,13 +103,16 @@ voc_summary_stats = voc_long %>%
 summary_stats_flextable = generate_summary_statistics(voc_summary_stats, voc_species)
 summary_stats_flextable = summary_stats_flextable %>%
   flextable::width(x = ., j = 3, unit = 'mm', width = 1) %>%
-  flextable::width(x = ., j = c(1,2), unit = 'mm', width = c(40,17)) %>%
+  flextable::width(x = ., j = c(1,2), unit = 'mm', width = c(35,15)) %>%
   flextable::width(x = ., j = c(4,5,6,7,8,9,10, 11, 12, 13),
                    width = c(10, 13, 13, 10, 10, 10, 10, 15, 10, 10), unit = 'mm') %>%
   flextable::fontsize(x = ., size = 8, part = c('all'))
 
-# save table
-summary_stats_flextable %>% flextable::save_as_docx(., path = 'tables/summary_stats.docx')
+# save table (if doesn't exist)
+if(!file.exists('tables/summary_stats.docx')){
+  summary_stats_flextable %>% flextable::save_as_docx(., path = 'tables/summary_stats.docx')
+}
+
 
 
 
@@ -165,17 +186,31 @@ for(i in 1:length(voc_detectable)){
     plot_title = paste(stringr::str_to_sentence(seasons[j]), voc_detectable[i])
     
     eqn = lm_equation(lm_results[[index]]$lm_result)
-    lm_plots[[index]] = ggpubr::ggscatter(data = data_subset,
-                                          x = 'dist_to_closest_gas_m',
-                                          y = voc_detectable[i]) +
+    
+    lm_plots[[index]] = ggplot2::ggplot(data = data_subset, 
+                                        aes(x = dist_to_closest_gas_m,
+                                            y = !!rlang::sym(voc_detectable[i])))+
       ggplot2::stat_smooth(method = 'lm',
                            colour = 'black', alpha = 0.2) +
-      # add linear regression results, P value is P value of slope, H0 is slope = 0, R^2 of regression is given
+      ggplot2::geom_point() +
       ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
       ggplot2::scale_y_continuous(name = y_name) +
       ggplot2::annotate(geom = 'text', x = 0, y = y_pos, label = eqn, parse = TRUE, hjust = 0) +
-      ggplot2::ggtitle(label = plot_title)
+      ggplot2::ggtitle(label = plot_title) +
+      ggpubr::theme_pubr()
     lm_plots[[index]]
+    
+    # lm_plots[[index]] = ggpubr::ggscatter(data = data_subset,
+    #                                       x = 'dist_to_closest_gas_m',
+    #                                       y = paste0('`', voc_detectable[i], '`')) +
+    #   ggplot2::stat_smooth(method = 'lm',
+    #                        colour = 'black', alpha = 0.2) +
+    #   # add linear regression results, P value is P value of slope, H0 is slope = 0, R^2 of regression is given
+    #   ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
+    #   ggplot2::scale_y_continuous(name = y_name) +
+    #   ggplot2::annotate(geom = 'text', x = 0, y = y_pos, label = eqn, parse = TRUE, hjust = 0) +
+    #   ggplot2::ggtitle(label = plot_title)
+    # lm_plots[[index]]
   }
 }
 
@@ -192,13 +227,14 @@ for(i in 1:length(voc_detectable)){
   eqn_fall = lm_equation(fall_regression)
   eqn_winter = lm_equation(winter_regression)
   
-  lm_plots_combined[[i]] = ggpubr::ggscatter(data = voc,
-                                             x = 'dist_to_closest_gas_m',
-                                             y = voc_detectable[i],
-                                             color = 'season') +
+  lm_plots_combined[[i]] = ggplot2::ggplot(data = voc, 
+                                           aes(x = dist_to_closest_gas_m,
+                                               y = !!rlang::sym(voc_detectable[i]),
+                                               color = season,
+                                               fill = season)) +
+    ggplot2::geom_point() +
     # add regression lines
-    ggplot2::stat_smooth(aes(color = season, fill = season),
-                         method = 'lm', 
+    ggplot2::stat_smooth(method = 'lm', 
                          alpha = 0.1,
                          inherit.aes = TRUE, linewidth = 1) +
     # adjust colour/fill scales
@@ -208,8 +244,27 @@ for(i in 1:length(voc_detectable)){
     ggplot2::scale_y_continuous(name = y_name) +
     ggplot2::annotate(geom = 'text', x = 0, y = y_pos_fall, label = eqn_fall, parse = TRUE, hjust = 0, color = 'tomato4') +
     ggplot2::annotate(geom = 'text', x = 0, y = y_pos_winter, label = eqn_winter, parse = TRUE, hjust = 0, color = 'skyblue4') +
-    ggplot2::ggtitle(label = plot_title)
-  lm_plots_combined[[i]] 
+    ggplot2::ggtitle(label = plot_title) +
+    ggpubr::theme_pubr()
+  lm_plots_combined[[i]]
+  
+  # lm_plots_combined[[i]] = ggpubr::ggscatter(data = voc,
+  #                                            x = 'dist_to_closest_gas_m',
+  #                                            y = voc_detectable[i],
+  #                                            color = 'season') +
+  #   # add regression lines
+  #   ggplot2::stat_smooth(aes(color = season, fill = season),
+  #                        method = 'lm', 
+  #                        alpha = 0.1,
+  #                        inherit.aes = TRUE, linewidth = 1) +
+  #   # adjust colour/fill scales
+  #   ggplot2::scale_fill_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
+  #   ggplot2::scale_color_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
+  #   ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
+  #   ggplot2::scale_y_continuous(name = y_name) +
+  #   ggplot2::annotate(geom = 'text', x = 0, y = y_pos_fall, label = eqn_fall, parse = TRUE, hjust = 0, color = 'tomato4') +
+  #   ggplot2::annotate(geom = 'text', x = 0, y = y_pos_winter, label = eqn_winter, parse = TRUE, hjust = 0, color = 'skyblue4') +
+  #   ggplot2::ggtitle(label = plot_title)
 }
 
 
