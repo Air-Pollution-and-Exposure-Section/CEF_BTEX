@@ -396,7 +396,7 @@ lm_signif_ft = lm_signif_table %>%
     slope_and_sd = "Slope ± SD",
     p_value = "P-value"
   ) %>% 
-flextable::fontsize(x = ., size = 10) %>% 
+  flextable::fontsize(x = ., size = 10) %>% 
   # building the superscripts for column headers Slope +- SD with units
   flextable::compose(
     part = 'header',
