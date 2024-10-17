@@ -7,5 +7,6 @@ The following data files are required to run the script:
 
 * EGROW_passive_for_analysis.xlsx'
 
+Directory /data needs to be created to hold all data files if re-producing analysis locally
 
 R environment is used for package management. Use renv::restore() to set up environment for analysis
