@@ -71,6 +71,7 @@ seasonal_comparison_plot = function(data, stat_res, sigma = 0.01, logbase = 10) 
   y_breaks_minor = c(seq(0.1, 5, 0.1))
   
   stat_res$y.position = asinh(stat_res$y.position / (2 * sigma)) / log(logbase)
+
   
   plot = data %>%
     dplyr::filter(species %in% stat_res$species) %>%
@@ -78,14 +79,18 @@ seasonal_comparison_plot = function(data, stat_res, sigma = 0.01, logbase = 10) 
     ggpubr::ggboxplot(data = .,
                       x = 'species',
                       y = 'conc',
-                      fill = 'season') +
+                      fill = 'season',
+                      na.rm = T) +
+    # ggplot2::ggplot(mapping = aes(x = species, y = conc, fill = season)) +
+    # ggplot2::geom_boxplot(position = position_dodge2(preserve = 'single')) +
     ggplot2::scale_y_continuous(name = y_name,
                                 trans = scales::pseudo_log_trans(sigma = 0.01, base = 10),
                                 breaks = y_breaks,
                                 minor_breaks = y_breaks_minor, labels = y_breaks) +
-    ggplot2::scale_x_discrete(name = 'Species') +
-    ggplot2::scale_fill_manual(name = 'Season', values = c('skyblue3', 'tomato3'), labels = c('Fall', 'Winter')) +
+    ggplot2::scale_x_discrete(name = 'Species', drop = FALSE) +
+    ggplot2::scale_fill_manual(name = 'Season', values = c('skyblue3', 'tomato3'), labels = c('Fall', 'Winter'), drop = FALSE) +
     ggpubr::stat_pvalue_manual(data = stat_res, tip.length = 0) +
+    ggplot2::coord_cartesian(ylim = c(0.1, 3.5)) +
     ggplot2::theme(legend.position = 'right',
                    panel.grid.major.y = element_line(colour = 'grey75'),
                    panel.grid.minor.y = element_line(colour = 'grey95'),

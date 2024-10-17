@@ -114,6 +114,32 @@ if(!file.exists('tables/summary_stats.docx')){
 }
 
 
+#------------------------------------------------------------#
+#### Generate separate data frame with >80% BDL set to NA ####
+#------------------------------------------------------------#
+
+# General Rationale - the results where (nearly) everything in a season is below detection limits are not interesting; 
+# this can be removed from visualizations
+
+
+# run conditional mutate to screen for >80% data bdl. Data table already stratified species/season
+voc_species_bdl = voc_summary_stats %>% 
+  dplyr::filter(`%_BDL` > 80) %>% 
+  dplyr::select(species, season) %>% 
+  unique()
+
+# set values to -999 to not render
+voc_long_hide_BDL = voc_long
+matches = merge(voc_long, voc_species_bdl, by = c('season', 'species'))
+voc_long_hide_BDL$conc[with(voc_long_hide_BDL, paste(season, species)) %in% with(matches, paste(season, species))] <- -999
+
+# set values to NA to 'remove' in calculation or lm plotting
+voc_long_NA_BDL = voc_long
+matches = merge(voc_long, voc_species_bdl, by = c('season', 'species'))
+voc_long_NA_BDL$conc[with(voc_long_NA_BDL, paste(season, species)) %in% with(matches, paste(season, species))] <- -NA
+
+####
+
 
 
 # Effect of season on BTEX species concentration --------------------------
@@ -136,10 +162,29 @@ voc_season_dunn = voc_season_dunn %>%
 
 # we will only look at BTEX species where concentrations were above detection limit (list from voc_season_dunn)
 seasonal_comparison_boxplot = seasonal_comparison_plot(data = voc_long, stat_res = voc_season_dunn)
-png(filename = 'figures/seasonal_comparison_dunn.png', width = 8, height = 6, units = 'in', res = 600)
-seasonal_comparison_boxplot
-dev.off()
+if(!file.exists('figures/seasonal_comparison_dunn.png')){
+  png(filename = 'figures/seasonal_comparison_dunn.png', width = 8, height = 6, units = 'in', res = 600)
+  seasonal_comparison_boxplot
+  dev.off()
+}
 
+
+
+# some adjustments for plotting stats comparisons
+voc_season_dunn_hide_BDL = voc_season_dunn %>%
+  dplyr::filter(!species %in% c("Chloroform", "Trichloroethylene", "d_Limonene")) %>% 
+  dplyr::mutate(x = seq(1:nrow(.)),
+                xmin = x - 0.4,
+                xmax = x + 0.4,
+                group1 = 'fall',
+                group2 = 'winter')
+
+season_comparison_boxplot_na_rm = seasonal_comparison_plot(data = voc_long_hide_BDL, stat_res = voc_season_dunn_hide_BDL)
+if(!file.exists('figures/seasonal_comparison_dunn_hide80BDL.png')){
+  png(filename = 'figures/seasonal_comparison_dunn_hide80BDL.png', width = 8, height = 6, units = 'in', res = 600)
+  season_comparison_boxplot_na_rm
+  dev.off()
+}
 
 
 # Effect of distance to gas station ---------------------------------------
@@ -159,6 +204,7 @@ seasons = c('fall', 'winter')
 voc_seasons = expand.grid(voc_detectable, seasons)
 voc_seasons = paste(voc_seasons$Var1, voc_seasons$Var2, sep = '_')
 
+##** NOTE - We may want to consider taking all regression results and running a P-value correction since this can be viewed as multiple testing?**##
 lm_results = vector(mode = 'list', length = (length(voc_detectable) * length(seasons)))
 lm_plots = vector(mode = 'list', length = (length(voc_detectable) * length(seasons)))
 
@@ -199,18 +245,6 @@ for(i in 1:length(voc_detectable)){
       ggplot2::ggtitle(label = plot_title) +
       ggpubr::theme_pubr()
     lm_plots[[index]]
-    
-    # lm_plots[[index]] = ggpubr::ggscatter(data = data_subset,
-    #                                       x = 'dist_to_closest_gas_m',
-    #                                       y = paste0('`', voc_detectable[i], '`')) +
-    #   ggplot2::stat_smooth(method = 'lm',
-    #                        colour = 'black', alpha = 0.2) +
-    #   # add linear regression results, P value is P value of slope, H0 is slope = 0, R^2 of regression is given
-    #   ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
-    #   ggplot2::scale_y_continuous(name = y_name) +
-    #   ggplot2::annotate(geom = 'text', x = 0, y = y_pos, label = eqn, parse = TRUE, hjust = 0) +
-    #   ggplot2::ggtitle(label = plot_title)
-    # lm_plots[[index]]
   }
 }
 
@@ -247,41 +281,135 @@ for(i in 1:length(voc_detectable)){
     ggplot2::ggtitle(label = plot_title) +
     ggpubr::theme_pubr()
   lm_plots_combined[[i]]
-  
-  # lm_plots_combined[[i]] = ggpubr::ggscatter(data = voc,
-  #                                            x = 'dist_to_closest_gas_m',
-  #                                            y = voc_detectable[i],
-  #                                            color = 'season') +
-  #   # add regression lines
-  #   ggplot2::stat_smooth(aes(color = season, fill = season),
-  #                        method = 'lm', 
-  #                        alpha = 0.1,
-  #                        inherit.aes = TRUE, linewidth = 1) +
-  #   # adjust colour/fill scales
-  #   ggplot2::scale_fill_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
-  #   ggplot2::scale_color_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
-  #   ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
-  #   ggplot2::scale_y_continuous(name = y_name) +
-  #   ggplot2::annotate(geom = 'text', x = 0, y = y_pos_fall, label = eqn_fall, parse = TRUE, hjust = 0, color = 'tomato4') +
-  #   ggplot2::annotate(geom = 'text', x = 0, y = y_pos_winter, label = eqn_winter, parse = TRUE, hjust = 0, color = 'skyblue4') +
-  #   ggplot2::ggtitle(label = plot_title)
 }
 
 
-# temp_data = voc %>%
-#   dplyr::select(tidyselect::all_of(voc_detectable),
-#                 season,
-#                 dist_to_closest_gas_m) %>%
-#   dplyr::filter(season == 'winter')
-# 
-# lm_res = stats::lm(formula = Toluene ~ dist_to_closest_gas_m, data = temp_data)
-# summary(lm_res)
-# 
-# ggplot2::ggplot(data = temp_data, mapping = aes(x = dist_to_closest_gas_m, y = Toluene)) +
-#   geom_point() +
-#   geom_smooth(method = 'loess') +
-#   theme_minimal()
 
+# Second set of linear regressions - only render > 80% detectable ---------
 
+# in other words, drop the species-season combinations where > 80% of samples are below detection limit
 
+# tabulate linear regression results
+lm_results_df = data.frame(
+  species = character(length(lm_results)),
+  season = character(length(lm_results)),
+  y_intercept = numeric(length(lm_results)),
+  y_intercept_sd = numeric(length(lm_results)),
+  y_intercept_p_value = numeric(length(lm_results)),
+  slope = numeric(length(lm_results)),
+  slope_sd = numeric(length(lm_results)),
+  slope_p_value = numeric(length(lm_results))
+)
+for(i in 1:length(lm_results)){
+  lm_results_df[i,1] = lm_results[[i]]$voc
+  lm_results_df[i,2] = lm_results[[i]]$season
+  lm_results_df[i,3] = as.numeric(lm_results[[i]]$lm_summary$coefficients[1,1])
+  lm_results_df[i,4] = as.numeric(lm_results[[i]]$lm_summary$coefficients[1,2])
+  lm_results_df[i,5] = as.numeric(lm_results[[i]]$lm_summary$coefficients[1,4])
+  lm_results_df[i,6] = as.numeric(lm_results[[i]]$lm_summary$coefficients[2,1])
+  lm_results_df[i,7] = as.numeric(lm_results[[i]]$lm_summary$coefficients[2,2])
+  lm_results_df[i,8] = as.numeric(lm_results[[i]]$lm_summary$coefficients[2,4])
+}
 
+# all significant slopes - relationships primarily occur in winter months
+lm_results_df %>% 
+  dplyr::filter(slope_p_value <= 0.05)
+
+selected_species = c("(m,p)_Xylene", "Benzene", "Ethylbenzene", "Hexane", "o_Xylene")
+names(selected_species) = c("(m,p)-Xylene", "Benzene", "Ethylbenzene", "Hexane", "o-Xylene")
+
+lm_plots_combined_detectable80 = vector(mode = 'list', length = length(selected_species))
+for(i in 1:length(selected_species)){
+  y_pos_fall = max(voc[,selected_species[i]]) * 1.1
+  y_pos_winter = max(voc[,selected_species[i]]) * 1.05
+  y_name = bquote(paste("Concentration", " (", mu * g, "/", m ^ 3, ")"))
+  plot_title = selected_species[i]
+  
+  form = as.formula(paste(paste0('`', selected_species[i], '`'), '~ dist_to_closest_gas_m'))
+  fall_regression = lm(formula = form, data = voc, subset = season == 'fall')
+  winter_regression = lm(formula = form, data = voc, subset = season == 'winter')
+  eqn_fall = lm_equation(fall_regression)
+  eqn_winter = lm_equation(winter_regression)
+  lm_plots_combined_detectable80[[i]] = ggplot2::ggplot(data = voc, 
+                                           aes(x = dist_to_closest_gas_m,
+                                               y = !!rlang::sym(selected_species[i]),
+                                               color = season,
+                                               fill = season)) +
+    ggplot2::geom_point() +
+    # add regression lines
+    ggplot2::stat_smooth(method = 'lm', 
+                         alpha = 0.1,
+                         inherit.aes = TRUE, linewidth = 1) +
+    # adjust colour/fill scales
+    ggplot2::scale_fill_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
+    ggplot2::scale_color_manual(name = 'Season', values = c('tomato3', 'skyblue3'), labels = c('Fall', 'Winter')) +
+    ggplot2::scale_x_continuous(name = "Distance to Closest Gas Station (m)") +
+    ggplot2::scale_y_continuous(name = y_name) +
+    ggplot2::annotate(geom = 'text', x = 0, y = y_pos_fall, label = eqn_fall, parse = TRUE, hjust = 0, color = 'tomato4') +
+    ggplot2::annotate(geom = 'text', x = 0, y = y_pos_winter, label = eqn_winter, parse = TRUE, hjust = 0, color = 'skyblue4') +
+    ggplot2::ggtitle(label = plot_title) +
+    ggpubr::theme_pubr()
+  
+  
+}
+
+# save results - use the first plot as a check if plots have already been generated
+if(!file.exists(stringr::str_glue("figures/{selected_species[1]}_linear_regression.png"))){
+  for(i in 1:length(selected_species)){
+    file_name = stringr::str_glue("figures/{selected_species[i]}_linear_regression.png")
+    plot = lm_plots_combined_detectable80[[i]] +
+      ggtitle(label = names(selected_species[i])) +
+      theme(legend.position = 'right')
+    
+    png(filename = file_name, width = 8, height = 6, res = 600, units = 'in')
+    print(plot)
+    dev.off()
+  }
+}
+
+# Table of significant linear regressions --------------------------------
+
+# table configuration for flextable
+options(scipen=999) # want to display all digits
+lm_signif_table = lm_results_df %>% 
+  dplyr::filter(species %in% selected_species) %>% 
+  dplyr::select(species, season, slope, slope_sd, slope_p_value) %>% 
+  dplyr::mutate(species = factor(species, levels = selected_species),
+                season = factor(season, levels = c('fall', 'winter')),
+                slope_round = ifelse(round(slope, 4) == 0, '<0.0001', as.character(round(slope,4))),
+                slope_sd_round = ifelse(round(slope_sd, 4) == 0, '<0.0001', as.character(round(slope,4))),
+                slope_and_sd = as.character(stringr::str_glue("{slope_round} ± {slope_sd_round}")),
+                p_value = ifelse(round(slope_p_value, 4) == 0, '<0.0001', as.character(round(slope_p_value, 4)))) %>% 
+  dplyr::select(species, season, slope_and_sd, p_value) %>% 
+  as.data.frame()
+
+# generate the flextable
+lm_signif_ft = lm_signif_table %>% 
+  flextable::flextable() %>% 
+  flextable::merge_v(., j='Species', ) %>% 
+  flextable::fix_border_issues(., part = 'all') %>% 
+  flextable::width(., width = c(1,1,2,1)) %>% 
+  flextable::valign(., j = 1, valign = 'top') %>% 
+  flextable::set_header_labels(
+    species = "Species",
+    season = "Season",
+    slope_and_sd = "Slope ± SD",
+    p_value = "P-value"
+  ) %>% 
+flextable::fontsize(x = ., size = 10) %>% 
+  # building the superscripts for column headers Slope +- SD with units
+  flextable::compose(
+    part = 'header',
+    j = "slope_and_sd",
+    value = as_paragraph(
+      "Slope ± SD (µg/m", 
+      as_sup("3"),       # Superscript for 3
+      " m", 
+      as_sup("-1"),      # Superscript for -1
+      ")"
+    )
+  )
+
+if(!file.exists('tables/lm_results_signif.docx')){
+  lm_signif_ft %>% flextable::save_as_docx(., path = 'tables/lm_results_signif.docx')
+}
